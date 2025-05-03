@@ -4,11 +4,13 @@ class MyTextFild extends StatelessWidget {
   final TextEditingController controlertext;
   final bool obscruteText;
   final String libertext;
+  final Icon? prefixIcon;
   const MyTextFild({
     super.key,
     required this.controlertext,
     required this.obscruteText,
     required this.libertext,
+     this.prefixIcon,
   });
 
   @override
@@ -20,6 +22,7 @@ class MyTextFild extends StatelessWidget {
       decoration: InputDecoration(
         contentPadding: EdgeInsets.symmetric(horizontal: 20),
         labelText: libertext,
+        prefixIcon: prefixIcon,
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
         ),

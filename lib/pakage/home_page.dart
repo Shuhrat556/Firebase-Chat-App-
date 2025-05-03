@@ -5,73 +5,196 @@ import 'package:chat/pakage/chat_page.dart';
 import 'package:chat/service/auth/auth_service.dart';
 import 'package:provider/provider.dart';
 
-// ignore: must_be_immutable
-class HomePage extends StatelessWidget {
-  HomePage({super.key});
-  FirebaseAuth _auth = FirebaseAuth.instance;
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Home page"),
+        title: const Text("Chat App"),
         actions: [
           IconButton(
-            onPressed: () {
-              context.read<AuthService>().signOut();
-            },
-            icon: Icon(Icons.logout),
+            onPressed: () => context.read<AuthService>().logOut(context),
+            icon: const Icon(Icons.logout),
+            tooltip: 'Logout',
           ),
         ],
       ),
-      body: _buildUserList(),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: "Search contacts...",
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                filled: true,
+                fillColor: Colors.grey.shade100,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+              ),
+              onChanged: (value) {
+                if (mounted) {
+                  setState(() {
+                    _searchQuery = value.toLowerCase();
+                  });
+                }
+              },
+            ),
+          ),
+          Expanded(child: _buildUserList()),
+        ],
+      ),
     );
   }
 
-  _buildUserList() {
+  Widget _buildUserList() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection("user").snapshots(),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<QuerySnapshot<Object?>> snapshot,
-      ) {
+      stream: FirebaseFirestore.instance.collection("users").snapshots(),
+      builder: (context, snapshot) {
+        if (!mounted) return const SizedBox();
+
         if (snapshot.hasError) {
-          return Text("Error!!");
+          return Center(
+            child: Text(
+              'Error loading users',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: Colors.red),
+            ),
+          );
         }
+
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Text("Loadding...");
+          return const Center(child: CircularProgressIndicator());
         }
-        return ListView(
-          children:
-              snapshot.data!.docs
-                  .map<Widget>((doc) => _buildUserListItem(doc, context))
-                  .toList(),
+
+        final users =
+            snapshot.data!.docs
+                .map((doc) => doc.data() as Map<String, dynamic>)
+                .where(
+                  (user) =>
+                      user['email'] != _auth.currentUser!.email &&
+                      (user['name']?.toString().toLowerCase().contains(
+                            _searchQuery,
+                          ) ??
+                          false),
+                )
+                .toList();
+
+        if (users.isEmpty) {
+          return Center(
+            child: Text(
+              _searchQuery.isEmpty
+                  ? 'No contacts available'
+                  : 'No matching contacts found',
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+          );
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.only(bottom: 16),
+          itemCount: users.length,
+          separatorBuilder:
+              (context, index) => const Divider(height: 1, indent: 72),
+          itemBuilder: (context, index) {
+            final user = users[index];
+            return _buildUserListItem(user, context);
+          },
         );
       },
     );
   }
 
-  _buildUserListItem(DocumentSnapshot doc, context) {
-    Map<String, dynamic> data = doc.data()! as Map<String, dynamic>;
+  Widget _buildUserListItem(Map<String, dynamic> user, BuildContext context) {
+    final userName = user['name'] ?? user['email'].split('@')[0];
+    final userInitial = userName.isNotEmpty ? userName[0].toUpperCase() : '?';
+    final status = user['status'] ?? 'Offline';
+    final photoUrl = user['photoUrl'];
 
-    if (_auth.currentUser!.email != data["email"]) {
-      return ListTile(
-        title: Text(data["email"]),
-        onTap: () {
+    return ListTile(
+      leading: CircleAvatar(
+        radius: 28,
+        backgroundColor: Colors.blueAccent,
+        backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+        child:
+            photoUrl == null
+                ? Text(
+                  userInitial,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontSize: 18,
+                  ),
+                )
+                : null,
+      ),
+      title: Text(
+        userName,
+        style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
+      ),
+      subtitle: Row(
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: status == 'Online' ? Colors.green : Colors.grey,
+              shape: BoxShape.circle,
+            ),
+            margin: const EdgeInsets.only(right: 6),
+          ),
+          Text(
+            status,
+            style: TextStyle(
+              color: status == 'Online' ? Colors.green : Colors.grey,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+      trailing: IconButton(
+        icon: const Icon(Icons.chat, color: Colors.blueAccent),
+        onPressed: () {
           Navigator.push(
             context,
             MaterialPageRoute(
               builder:
                   (_) => ChatPage(
-                    receiveUserEmail: data["email"],
-                    receiveUserID: data["uid"],
+                    receiveUserEmail: user['email'],
+                    receiveUserID: user['uid'],
+                    receiveUserName: userName,
+                    receiveUserPhotoUrl: photoUrl,
                   ),
             ),
           );
         },
-      );
-    } else {
-      return Container();
-    }
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    );
   }
 }

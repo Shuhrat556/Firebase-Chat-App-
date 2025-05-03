@@ -6,8 +6,8 @@ import 'package:flutter/widgets.dart';
 import 'package:chat/models/message.dart';
 
 class ChatService extends ChangeNotifier {
-  FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
-  FirebaseFirestore _fireStore = FirebaseFirestore.instance;
+  final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
+  final FirebaseFirestore _fireStore = FirebaseFirestore.instance;
 
   Future<void> sendMessage(String reciveID, String message) async {
     final String curentUserID = _firebaseAuth.currentUser!.uid;
@@ -30,8 +30,6 @@ class ChatService extends ChangeNotifier {
         .doc(chatRoomId)
         .collection("message")
         .add(newMessage.toMap());
-    print('Sending message to room: $chatRoomId');
-    print('Message content: ${newMessage.toMap()}');
   }
 
   Stream<QuerySnapshot> getMessage(userId, otherUserId) {
@@ -39,7 +37,6 @@ class ChatService extends ChangeNotifier {
     isd.sort();
     String chatRoomsId = isd.join("-");
 
-    print('Listening to messages in room: $chatRoomsId');
     return _fireStore
         .collection("chat_rooms")
         .doc(chatRoomsId)
